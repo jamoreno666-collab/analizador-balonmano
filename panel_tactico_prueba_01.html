@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Panel Táctil · Prueba 02</title>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Panel Táctil · Prueba 03</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#eef2f4;color:#172c38;font:16px system-ui,sans-serif}header{padding:14px 20px;background:#172c38;color:white;display:flex;align-items:center;gap:16px;flex-wrap:wrap}h1{font-size:20px;margin:0}header span{font-size:13px;color:#bfccd3}main{max-width:1180px;margin:auto;padding:12px}.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}button,input,select{font:inherit;border:1px solid #b6c6cf;border-radius:9px;background:white;padding:10px;min-height:44px}button{cursor:pointer}button:disabled{opacity:.4}input[type=number]{width:76px}label{display:flex;align-items:center;gap:7px}.board{background:white;border-radius:14px;border:1px solid #c9d4da;overflow:hidden}svg{display:block;width:100%;height:min(70vh,850px);touch-action:none;user-select:none;-webkit-user-select:none}#player,#ball{cursor:grab}#player:active,#ball:active{cursor:grabbing}.hint{margin:9px 2px;font-size:14px}.note{font-size:13px;color:#536974;margin:12px 2px}input[type=checkbox]{width:20px;height:20px}button:focus-visible,select:focus-visible{outline:3px solid #2098bd}
 </style>
-<header><h1>Panel Táctil</h1><span>Prueba 02 · Lanzamientos · Módulo independiente</span></header>
+<header><h1>Panel Táctil</h1><span>Prueba 03 · Lanzamientos · Módulo independiente</span></header>
 <main>
 <div class="tools"><label>Dorsal <input id="dorsal" type="number" min="0" max="99" value="7"></label><label><input id="gridToggle" type="checkbox" checked>Cuadrícula</label><button id="undo">Deshacer</button><button id="reset">Reiniciar</button><button id="save">Guardar prueba</button><button id="load">Abrir prueba</button><input id="file" type="file" accept="application/json,.json" hidden></div>
 <div class="board"><svg id="board" viewBox="0 0 1000 900" role="img" aria-label="Panel táctil. Coloca al jugador, tócalo para registrar y arrastra jugador y balón.">
@@ -12,12 +12,13 @@
 <path d="M330 285V100H670V285" fill="none" stroke="#111" stroke-width="20"/>
 <path d="M330 285V100H670V285" fill="none" stroke="white" stroke-width="18" stroke-dasharray="24 32"/>
 <g id="grid" stroke="#111" stroke-width="1.5"><path d="M393 110V285M465 110V285M535 110V285M607 110V285M340 168H660M340 226H660"/></g>
+<g id="startGhost" opacity="0.3" visibility="hidden" pointer-events="none" aria-hidden="true"><circle r="21" fill="#176b9a" stroke="white" stroke-width="3"/><text id="ghostNumber" text-anchor="middle" dy="7" font-size="21" font-weight="700" fill="white">7</text></g>
 <g id="routes" fill="none" stroke-linejoin="round" stroke-linecap="round"></g>
 <g id="player"><circle r="30" fill="transparent"/><circle id="armedRing" r="26" fill="none" stroke="#139567" stroke-width="3" visibility="hidden"/><circle r="21" fill="#176b9a" stroke="white" stroke-width="3"/><text id="number" text-anchor="middle" dy="7" font-size="21" font-weight="700" fill="white" pointer-events="none">7</text></g>
 <g id="ball"><circle r="23" fill="transparent"/><circle r="11" fill="#f39632" stroke="#713609" stroke-width="2"/><path d="M-9 0H9M0-9V9" stroke="#713609" stroke-width="1.5" pointer-events="none"/></g>
 </svg></div>
 <p class="hint" id="status" aria-live="polite"></p>
-<p class="note">Coloca → toca al jugador → dibuja su recorrido → arrastra el balón y suéltalo. La trayectoria del balón sigue tu dedo. Deshacer recupera el estado anterior.</p>
+<p class="note">Coloca → toca al jugador → dibuja su recorrido → arrastra el balón y suéltalo. Las trayectorias se suavizan y la silueta tenue señala el inicio del jugador. Deshacer recupera el estado anterior.</p>
 </main>
 <script>
 'use strict';
@@ -32,8 +33,32 @@ const project=p=>p.space==='goal'?fromGoal(p):fromField(p);
 const initial=()=>({version:2,geometry:'juan-media-pista-01',dorsal:'7',phase:'place',player:{x:50,y:83},ball:{space:'field',x:54,y:83},possession:true,routes:[],shot:null});
 const clone=x=>JSON.parse(JSON.stringify(x));
 let state=initial(),history=[],drag=null;
-function draw(points,color,marker,projector){if(points.length<2)return;const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',points.map((v,i)=>{const p=projector(v);return `${i?'L':'M'}${p.x} ${p.y}`}).join(' '));path.setAttribute('stroke',color);path.setAttribute('stroke-width','3');path.setAttribute('marker-end',`url(#${marker})`);$('routes').append(path);}
-function render(){const p=fromField(state.player),b=project(state.ball);$('player').setAttribute('transform',`translate(${p.x} ${p.y})`);$('ball').setAttribute('transform',`translate(${b.x} ${b.y})`);$('number').textContent=state.dorsal;$('dorsal').value=state.dorsal;$('armedRing').setAttribute('visibility',state.phase==='record'?'visible':'hidden');$('routes').replaceChildren();state.routes.forEach(r=>draw(r,'#176b9a','blueArrow',fromField));if(state.shot)draw(state.shot.points,'#cc5e10','orangeArrow',project);$('undo').disabled=!history.length||!!drag;for(const id of ['reset','save','load','dorsal'])$(id).disabled=!!drag;$('status').textContent=state.phase==='place'?'1 · Coloca al jugador con el balón. No se registra el desplazamiento. Después, da un toque al jugador.':state.phase==='complete'?'Acción fijada. Deshacer permite corregir el último gesto; Reiniciar prepara otra acción.':drag?.kind==='ball'?'3 · Dibuja con el balón la trayectoria que quieras. Suelta para fijar la acción.':'2 · Registro activo (aro verde). Arrastra al jugador; después, arrastra el balón para lanzar.';}
+// Rendering only: retain original gesture samples for undo and JSON round trips.
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function segmentDistance(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;if(!l)return distance(p,a);const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);}
+function simplify(points,tolerance=3){
+ const p=points.filter((v,i)=>i===0||distance(v,points[i-1])>0.00001);if(p.length<3)return p;
+ const keep=new Set([0,p.length-1]),stack=[[0,p.length-1]];
+ while(stack.length){const [a,b]=stack.pop();let max=tolerance,index=-1;for(let i=a+1;i<b;i++){const d=segmentDistance(p[i],p[a],p[b]);if(d>max){max=d;index=i;}}if(index!==-1){keep.add(index);stack.push([a,index],[index,b]);}}
+ return [...keep].sort((a,b)=>a-b).map(i=>p[i]);
+}
+function smoothPath(points){
+ const p=simplify(points);if(!p.length)return '';let d=`M${p[0].x} ${p[0].y}`;if(p.length===1)return d;
+ for(let i=1;i<p.length-1;i++){
+  const a=p[i-1],b=p[i],c=p[i+1],incoming=distance(a,b),outgoing=distance(b,c);
+  const cosine=((b.x-a.x)*(c.x-b.x)+(b.y-a.y)*(c.y-b.y))/(incoming*outgoing);
+  // Preserve pronounced cuts and reversals; round gentle hand-drawn bends.
+  if(cosine<Math.cos(Math.PI/3)){d+=` L${b.x} ${b.y}`;continue;}
+  const radius=Math.min(18,incoming*.45,outgoing*.45);
+  const enter={x:b.x+(a.x-b.x)*radius/incoming,y:b.y+(a.y-b.y)*radius/incoming};
+  const leave={x:b.x+(c.x-b.x)*radius/outgoing,y:b.y+(c.y-b.y)*radius/outgoing};
+  d+=` L${enter.x} ${enter.y} Q${b.x} ${b.y} ${leave.x} ${leave.y}`;
+ }
+ const end=p[p.length-1];return d+` L${end.x} ${end.y}`;
+}
+function ghostOrigin(){const origin=state.routes[0]?.[0];if(!origin)return null;const start=fromField(origin);return state.routes.some(r=>r.some(p=>distance(fromField(p),start)>1))?start:null;}
+function draw(points,color,marker,projector){if(points.length<2)return;const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',smoothPath(points.map(projector)));path.setAttribute('stroke',color);path.setAttribute('stroke-width','3');path.setAttribute('marker-end',`url(#${marker})`);$('routes').append(path);}
+function render(){const origin=ghostOrigin();$('startGhost').setAttribute('visibility',origin?'visible':'hidden');if(origin)$('startGhost').setAttribute('transform',`translate(${origin.x} ${origin.y})`);$('ghostNumber').textContent=state.dorsal;const p=fromField(state.player),b=project(state.ball);$('player').setAttribute('transform',`translate(${p.x} ${p.y})`);$('ball').setAttribute('transform',`translate(${b.x} ${b.y})`);$('number').textContent=state.dorsal;$('dorsal').value=state.dorsal;$('armedRing').setAttribute('visibility',state.phase==='record'?'visible':'hidden');$('routes').replaceChildren();state.routes.forEach(r=>draw(r,'#176b9a','blueArrow',fromField));if(state.shot)draw(state.shot.points,'#cc5e10','orangeArrow',project);$('undo').disabled=!history.length||!!drag;for(const id of ['reset','save','load','dorsal'])$(id).disabled=!!drag;$('status').textContent=state.phase==='place'?'1 · Coloca al jugador con el balón. No se registra el desplazamiento. Después, da un toque al jugador.':state.phase==='complete'?'Acción fijada. Deshacer permite corregir el último gesto; Reiniciar prepara otra acción.':drag?.kind==='ball'?'3 · Dibuja con el balón la trayectoria que quieras. Suelta para fijar la acción.':'2 · Registro activo (aro verde). Arrastra al jugador; después, arrastra el balón para lanzar.';}
 function point(e){const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(svg.getScreenCTM().inverse());return{x:Math.max(12,Math.min(988,p.x)),y:Math.max(12,Math.min(888,p.y))};}
 function start(e,kind){if(drag||!e.isPrimary||e.button!==0)return;e.preventDefault();if(state.phase==='complete'||(kind==='ball'&&state.phase==='place'))return;const at=point(e),obj=kind==='player'?fromField(state.player):project(state.ball);drag={id:e.pointerId,kind,before:clone(state),at:{x:e.clientX,y:e.clientY},offset:{x:at.x-obj.x,y:at.y-obj.y},moved:false};svg.setPointerCapture(e.pointerId);render();}
 function move(e){if(!drag||e.pointerId!==drag.id)return;e.preventDefault();if(!drag.moved){if(Math.hypot(e.clientX-drag.at.x,e.clientY-drag.at.y)<8)return;drag.moved=true;history.push(clone(drag.before));if(drag.kind==='player'&&state.phase==='record')state.routes.push([clone(state.player)]);if(drag.kind==='ball'){const origin=project(state.ball);state.shot={origin:toField(origin),target:toGoal(origin),points:[{space:'field',...toField(origin)}]};state.possession=false;}}
@@ -48,6 +73,6 @@ $('dorsal').onchange=()=>{if(drag)return;history.push(clone(state));state.dorsal
 $('gridToggle').onchange=()=>{$('grid').style.display=$('gridToggle').checked?'':'none';};
 $('save').onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='prueba_panel_tactil.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);};
 function valid(v){const p=o=>o&&Number.isFinite(o.x)&&Number.isFinite(o.y)&&Math.abs(o.x)<10000&&Math.abs(o.y)<10000;const tagged=o=>p(o)&&['field','goal'].includes(o.space);return v&&v.version===2&&v.geometry==='juan-media-pista-01'&&typeof v.dorsal==='string'&&/^\d{1,2}$/.test(v.dorsal)&&['place','record','complete'].includes(v.phase)&&p(v.player)&&tagged(v.ball)&&typeof v.possession==='boolean'&&Array.isArray(v.routes)&&v.routes.length<1000&&v.routes.every(r=>Array.isArray(r)&&r.length<100000&&r.every(p))&&(v.shot===null||(p(v.shot.origin)&&p(v.shot.target)&&Array.isArray(v.shot.points)&&v.shot.points.length>0&&v.shot.points.length<100000&&v.shot.points.every(tagged)))&&(v.phase==='complete'?!!v.shot&&!v.possession:v.possession&&!v.shot)&&(v.phase!=='place'||v.routes.length===0);}
-$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>5000000)throw Error();const v=JSON.parse(await f.text());if(!valid(v))throw Error();history.push(clone(state));state=v;render();}catch{$('status').textContent='No se pudo abrir. Selecciona un JSON guardado por la Prueba 02 del Panel Táctil.';}e.target.value='';};
+$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>5000000)throw Error();const v=JSON.parse(await f.text());if(!valid(v))throw Error();history.push(clone(state));state=v;render();}catch{$('status').textContent='No se pudo abrir. Selecciona un JSON guardado por las Pruebas 02 o 03 del Panel Táctil.';}e.target.value='';};
 render();
 </script></html>
